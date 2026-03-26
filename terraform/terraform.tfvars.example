@@ -1,0 +1,7 @@
+aws_region           = "eu-west-2"
+environment          = "dev"
+project_name         = "storyforge"
+media_bucket_name    = "storyforge-media"
+frontend_bucket_name = "storyforge-frontend"
+media_retention_days = 7
+iam_dev_user_name    = "storyforge-dev"
