@@ -37,18 +37,17 @@ const STARS = Array.from({ length: 10 }, (_, i) => ({
   left:   Math.random() * 100,
 }))
 
-function AnimationCanvas({ animation, activeScene, playing, onPlayingChange }) {
-  const videoRef = useRef(null)
+function AnimationCanvas({ animation, activeScene, playing, onPlayingChange, videoRef, onTimeUpdate, onDurationChange }) {
   const scene = animation.sceneList?.[activeScene] ?? animation.sceneList?.[0]
 
   useEffect(() => {
-    if (!videoRef.current) return
+    if (!videoRef?.current) return
     if (playing) {
       videoRef.current.play().catch(() => onPlayingChange(false))
     } else {
       videoRef.current.pause()
     }
-  }, [playing, onPlayingChange])
+  }, [playing, onPlayingChange, videoRef])
 
   if (animation.videoUrl) {
     return (
@@ -58,6 +57,8 @@ function AnimationCanvas({ animation, activeScene, playing, onPlayingChange }) {
           src={animation.videoUrl}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           onEnded={() => onPlayingChange(false)}
+          onTimeUpdate={(e) => onTimeUpdate?.(e.target.currentTime)}
+          onLoadedMetadata={(e) => onDurationChange?.(e.target.duration)}
         />
       </div>
     )
@@ -144,6 +145,9 @@ export default function AnimationEditor({ animation }) {
   const navigate = useNavigate()
   const [activeScene, setActiveScene] = useState(0)
   const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const videoRef = useRef(null)
   const [messages, setMessages] = useState([
     { role: 'ai', text: `Hi! I'm editing "${animation.title}". What would you like to change?` },
   ])
@@ -202,7 +206,15 @@ export default function AnimationEditor({ animation }) {
           {/* Canvas */}
           <div className="sf-card" style={{ marginBottom: '18px', overflow: 'visible' }}>
             <div style={{ padding: '16px 20px 0' }}>
-              <AnimationCanvas animation={animation} activeScene={activeScene} playing={playing} onPlayingChange={setPlaying} />
+              <AnimationCanvas
+                animation={animation}
+                activeScene={activeScene}
+                playing={playing}
+                onPlayingChange={setPlaying}
+                videoRef={videoRef}
+                onTimeUpdate={setCurrentTime}
+                onDurationChange={setDuration}
+              />
             </div>
 
             {/* Playback controls */}
@@ -217,15 +229,23 @@ export default function AnimationEditor({ animation }) {
               <button className="sf-control-btn" onClick={() => setPlaying((p) => !p)}>
                 {playing ? '⏸' : '▶'}
               </button>
-              <button className="sf-control-btn">⏮</button>
-              <div style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '4px', cursor: 'pointer' }}>
+              <button className="sf-control-btn" onClick={() => { if (videoRef.current) { videoRef.current.currentTime = 0; setCurrentTime(0) } }}>⏮</button>
+              <div
+                style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '4px', cursor: 'pointer', position: 'relative' }}
+                onClick={(e) => {
+                  if (!videoRef.current || !duration) return
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const pct = (e.clientX - rect.left) / rect.width
+                  videoRef.current.currentTime = pct * duration
+                }}
+              >
                 <div
                   style={{
                     height: '100%',
-                    width: `${(activeScene / Math.max(animation.sceneList.length - 1, 1)) * 100}%`,
+                    width: `${duration ? (currentTime / duration) * 100 : 0}%`,
                     background: 'linear-gradient(90deg, var(--rose), var(--amber))',
                     borderRadius: '4px',
-                    transition: 'width 0.3s',
+                    transition: 'width 0.1s linear',
                   }}
                 />
               </div>

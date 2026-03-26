@@ -34,7 +34,7 @@ export function transcribeRecording(audioBlob) {
  * @returns {Promise<{ jobId, title, style, audience, scenes, videoUrl }>}
  */
 export async function generateStory({ prompt, audience, style, length }, onProgress) {
-  const CLIP_DURATIONS = { '5s': 5, '10s': 10, '20s': 10, '30s': 10 }
+  const CLIP_DURATIONS = { '5s': 4, '10s': 8, '20s': 8, '30s': 8 }
   const clipDuration = CLIP_DURATIONS[length] ?? 5
 
   onProgress?.(1, 'Writing story script…')
