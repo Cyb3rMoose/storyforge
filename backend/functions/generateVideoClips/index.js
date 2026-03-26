@@ -47,9 +47,9 @@ exports.handler = async (event) => {
       console.log(`Scene ${scene.id}: generating video clip…`)
 
       const task = await runway.textToVideo.create({
-        model: 'gen3a_turbo',
+        model: 'gen4.5',
         promptText,
-        duration: 10,
+        duration: 5,
         ratio: '1280:720',
         watermark: false,
       })
