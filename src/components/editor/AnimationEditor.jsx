@@ -245,7 +245,7 @@ export default function AnimationEditor({ animation }) {
                 <div
                   style={{
                     height: '100%',
-                    width: `${(duration || videoRef.current?.duration) ? (currentTime / (duration || videoRef.current.duration)) * 100 : 0}%`,
+                    width: `${duration ? (currentTime / duration) * 100 : 0}%`,
                     background: 'linear-gradient(90deg, var(--rose), var(--amber))',
                     borderRadius: '4px',
                     transition: 'width 0.1s linear',

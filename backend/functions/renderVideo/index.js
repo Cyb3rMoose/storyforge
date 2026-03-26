@@ -26,7 +26,7 @@ const TMP = os.tmpdir()
  */
 exports.handler = async (event) => {
   const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body ?? event
-  const { jobId, scenes, clips, audio } = body
+  const { jobId, clips } = body
 
   if (!jobId || !clips?.length) {
     return response(400, { error: 'jobId and clips are required' })
