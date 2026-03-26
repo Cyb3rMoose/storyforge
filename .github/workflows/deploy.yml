@@ -1,4 +1,4 @@
-name: Deploy — S3 + CloudFront
+name: Deploy - S3 + CloudFront
 
 on:
   push:
