@@ -233,16 +233,19 @@ export default function AnimationEditor({ animation }) {
               <div
                 style={{ flex: 1, height: '4px', background: 'var(--border)', borderRadius: '4px', cursor: 'pointer', position: 'relative' }}
                 onClick={(e) => {
-                  if (!videoRef.current || !duration) return
+                  if (!videoRef.current) return
+                  const dur = videoRef.current.duration
+                  if (!dur || isNaN(dur)) return
                   const rect = e.currentTarget.getBoundingClientRect()
-                  const pct = (e.clientX - rect.left) / rect.width
-                  videoRef.current.currentTime = pct * duration
+                  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                  videoRef.current.currentTime = pct * dur
+                  setCurrentTime(pct * dur)
                 }}
               >
                 <div
                   style={{
                     height: '100%',
-                    width: `${duration ? (currentTime / duration) * 100 : 0}%`,
+                    width: `${(duration || videoRef.current?.duration) ? (currentTime / (duration || videoRef.current.duration)) * 100 : 0}%`,
                     background: 'linear-gradient(90deg, var(--rose), var(--amber))',
                     borderRadius: '4px',
                     transition: 'width 0.1s linear',
