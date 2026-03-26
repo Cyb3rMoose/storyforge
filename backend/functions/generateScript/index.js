@@ -25,19 +25,25 @@ exports.handler = async (event) => {
     return response(400, { error: 'prompt is required' })
   }
 
-  const sceneCount = { quick: 2, short: 4, medium: 7, long: 11 }[length] ?? 7
+  const sceneCount = { '5s': 1, '10s': 1, '20s': 2, '30s': 3 }[length] ?? 1
 
   const systemPrompt = `You are a creative children's story writer and animator.
 Your job is to turn story prompts into structured animation scripts.
 Always respond with valid JSON only — no markdown, no commentary.`
 
-  const userPrompt = `Create an animated story script from this prompt:
+  const isMultiScene = sceneCount > 1
+  const sceneInstructions = isMultiScene
+    ? `Split the story into exactly ${sceneCount} sequential parts that flow as one continuous movie. Part 1 covers the beginning, part ${sceneCount} covers the end. Each part must pick up exactly where the previous left off — same characters, same setting continuity, progressing narrative.`
+    : `Capture the full story in a single vivid scene.`
+
+  const userPrompt = `Create a video script from this prompt:
 
 "${prompt}"
 
-Target audience: ${audience}
 Visual style: ${style}
-Number of scenes: ${sceneCount}
+Number of parts: ${sceneCount}
+
+${sceneInstructions}
 
 Respond with this exact JSON structure:
 {
@@ -45,19 +51,17 @@ Respond with this exact JSON structure:
   "scenes": [
     {
       "id": 1,
-      "description": "Visual description for the image generator (2-3 sentences, vivid and specific, mention the ${style} art style)",
-      "narration": "What the narrator says aloud during this scene (1-3 sentences, age-appropriate for ${audience})",
-      "duration": 8
+      "description": "Vivid visual description for video generation (2-3 sentences, specific action and motion, mention the ${style} art style). Must describe what is HAPPENING, not just what things look like.",
+      "duration": 10
     }
   ]
 }
 
 Rules:
-- description is for image generation — make it detailed and painterly
-- narration is what gets spoken aloud — keep it warm and engaging
-- duration is seconds (6-12 per scene based on narration length)
-- The story must have a clear beginning, middle, and end
-- Keep language appropriate for ${audience}`
+- description is a video generation prompt — focus on motion, action, and atmosphere
+- Each scene description must be self-contained but narratively connected to the others
+- No text or words should appear in the video
+- Keep tone appropriate for ${audience}`
 
   try {
     const message = await client.messages.create({

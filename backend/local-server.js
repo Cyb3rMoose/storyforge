@@ -52,22 +52,22 @@ app.post('/api/generate', async (req, res) => {
     const script = JSON.parse(scriptResult.body)
     if (scriptResult.statusCode !== 200) return res.status(scriptResult.statusCode).json(script)
 
-    console.log('[2/4] Generating video clips…')
-    const clipsResult = await generateVideoClips.handler({ body: { jobId: script.jobId, style: script.style, scenes: script.scenes } })
+    const CLIP_DURATIONS = { '5s': 5, '10s': 10, '20s': 10, '30s': 10 }
+    const clipDuration = CLIP_DURATIONS[length] ?? 5
+
+    console.log('[2/3] Generating video clips…')
+    const clipsResult = await generateVideoClips.handler({ body: { jobId: script.jobId, style: script.style, scenes: script.scenes, clipDuration } })
     const clipsData = JSON.parse(clipsResult.body)
 
-    console.log('[3/4] Generating audio…')
-    const audioResult = await generateAudio.handler({ body: { jobId: script.jobId, audience: script.audience, scenes: script.scenes } })
-    const audioData = JSON.parse(audioResult.body)
-
-    console.log('[4/4] Rendering video…')
-    const videoResult = await renderVideo.handler({ body: { jobId: script.jobId, scenes: script.scenes, clips: clipsData.clips, audio: audioData.audio } })
+    console.log('[3/3] Rendering video…')
+    const videoResult = await renderVideo.handler({ body: { jobId: script.jobId, clips: clipsData.clips } })
     const videoData = JSON.parse(videoResult.body)
     if (videoResult.statusCode !== 200) return res.status(videoResult.statusCode).json(videoData)
 
     console.log('[✓] Generation complete:', videoData.videoUrl)
 
     res.json({ jobId: script.jobId, title: script.title, style: script.style, audience: script.audience, scenes: script.scenes, videoUrl: videoData.videoUrl, videoKey: videoData.videoKey })
+
   } catch (err) {
     console.error('Pipeline error:', err)
     res.status(500).json({ error: 'Pipeline failed', detail: err.message })

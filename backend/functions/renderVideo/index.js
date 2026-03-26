@@ -28,53 +28,32 @@ exports.handler = async (event) => {
   const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body ?? event
   const { jobId, scenes, clips, audio } = body
 
-  if (!jobId || !scenes?.length || !clips?.length || !audio?.length) {
-    return response(400, { error: 'jobId, scenes, clips, and audio are required' })
+  if (!jobId || !clips?.length) {
+    return response(400, { error: 'jobId and clips are required' })
   }
 
   const workDir = path.join(TMP, jobId)
   fs.mkdirSync(workDir, { recursive: true })
 
   try {
-    // ── 1. Download all assets from S3 ────────────────────────────────────────
-    const clipMap = {}
-    const audioMap = {}
+    // ── 1. Download video clips from S3 ──────────────────────────────────────
+    const clipPaths = []
 
     for (const clip of clips) {
       if (clip.status === 'error') continue
       const localPath = path.join(workDir, `scene_${clip.sceneId}.mp4`)
       await downloadFromS3(clip.s3Key, localPath)
-      clipMap[clip.sceneId] = localPath
+      clipPaths.push(localPath)
+      console.log(`Downloaded clip for scene ${clip.sceneId}`)
     }
 
-    for (const aud of audio) {
-      if (aud.status === 'error') continue
-      const localPath = path.join(workDir, `scene_${aud.sceneId}.mp3`)
-      await downloadFromS3(aud.s3Key, localPath)
-      audioMap[aud.sceneId] = { path: localPath, durationMs: aud.durationMs }
+    if (!clipPaths.length) {
+      throw new Error('No clips downloaded successfully')
     }
 
-    // ── 2. Overlay narration audio on each video clip (looping clip to fill audio) ──
-    const muxedPaths = []
-
-    for (const scene of scenes) {
-      const clipPath = clipMap[scene.id]
-      const audData = audioMap[scene.id]
-      if (!clipPath || !audData) continue
-
-      const muxedPath = path.join(workDir, `muxed_${scene.id}.mp4`)
-      await overlayAudio(clipPath, audData.path, muxedPath)
-      muxedPaths.push(muxedPath)
-      console.log(`Muxed clip for scene ${scene.id}: ${muxedPath}`)
-    }
-
-    if (!muxedPaths.length) {
-      throw new Error('No clips were muxed successfully')
-    }
-
-    // ── 3. Concatenate into final video ───────────────────────────────────────
+    // ── 2. Concatenate into final video ───────────────────────────────────────
     const outputPath = path.join(workDir, 'final.mp4')
-    await concatenateClips(muxedPaths, outputPath)
+    await concatenateClips(clipPaths, outputPath)
 
     // ── 4. Upload to S3 ───────────────────────────────────────────────────────
     const videoKey = `jobs/${jobId}/final.mp4`
@@ -108,32 +87,6 @@ async function downloadFromS3(key, localPath) {
   fs.writeFileSync(localPath, Buffer.concat(chunks))
 }
 
-/**
- * Overlays narration audio onto a video clip, looping the video to match audio length.
- */
-function overlayAudio(videoPath, audioPath, outputPath) {
-  return new Promise((resolve, reject) => {
-    ffmpeg()
-      .input(videoPath)
-      .inputOptions(['-stream_loop -1'])  // loop video until audio ends
-      .input(audioPath)
-      .outputOptions([
-        '-c:v libx264',
-        '-preset fast',
-        '-crf 23',
-        '-c:a aac',
-        '-b:a 128k',
-        '-pix_fmt yuv420p',
-        '-map 0:v:0',
-        '-map 1:a:0',
-        '-shortest',  // stop when audio finishes
-      ])
-      .output(outputPath)
-      .on('end', resolve)
-      .on('error', reject)
-      .run()
-  })
-}
 
 function concatenateClips(clipPaths, outputPath) {
   return new Promise((resolve, reject) => {
@@ -143,7 +96,14 @@ function concatenateClips(clipPaths, outputPath) {
     ffmpeg()
       .input(listFile)
       .inputOptions(['-f concat', '-safe 0'])
-      .outputOptions(['-c copy'])
+      .outputOptions([
+        '-c:v libx264',
+        '-preset fast',
+        '-crf 23',
+        '-c:a aac',
+        '-b:a 128k',
+        '-pix_fmt yuv420p',
+      ])
       .output(outputPath)
       .on('end', resolve)
       .on('error', reject)

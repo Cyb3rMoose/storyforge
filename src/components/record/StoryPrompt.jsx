@@ -9,10 +9,10 @@ const INSPIRATIONS = [
 ]
 
 const LENGTHS = [
-  { id: 'quick',  label: 'Quick',  desc: '~30 sec' },
-  { id: 'short',  label: 'Short',  desc: '1–2 min' },
-  { id: 'medium', label: 'Medium', desc: '3–5 min' },
-  { id: 'long',   label: 'Long',   desc: '8–12 min' },
+  { id: '5s',  label: '5s',  desc: '1 clip' },
+  { id: '10s', label: '10s', desc: '1 clip' },
+  { id: '20s', label: '20s', desc: '2 clips' },
+  { id: '30s', label: '30s', desc: '3 clips' },
 ]
 
 export default function StoryPrompt() {

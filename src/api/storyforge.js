@@ -34,37 +34,31 @@ export function transcribeRecording(audioBlob) {
  * @returns {Promise<{ jobId, title, style, audience, scenes, videoUrl }>}
  */
 export async function generateStory({ prompt, audience, style, length }, onProgress) {
+  const CLIP_DURATIONS = { '5s': 5, '10s': 10, '20s': 10, '30s': 10 }
+  const clipDuration = CLIP_DURATIONS[length] ?? 5
+
   onProgress?.(1, 'Writing story script…')
 
   const scriptRes = await post('/api/generate-script', { prompt, audience, style, length })
   const script = await scriptRes.json()
   if (!scriptRes.ok) throw new Error(script.error ?? 'Script generation failed')
 
-  onProgress?.(2, 'Generating video clips…')
+  onProgress?.(2, 'Generating video clips with sound…')
 
   const clipsRes = await post('/api/generate-video-clips', {
     jobId: script.jobId,
     style: script.style,
     scenes: script.scenes,
+    clipDuration,
   })
   const clipsData = await clipsRes.json()
+  if (!clipsRes.ok) throw new Error(clipsData.error ?? 'Video clip generation failed')
 
-  onProgress?.(3, 'Recording narration…')
-
-  const audioRes = await post('/api/generate-audio', {
-    jobId: script.jobId,
-    audience: script.audience,
-    scenes: script.scenes,
-  })
-  const audioData = await audioRes.json()
-
-  onProgress?.(4, 'Rendering your story…')
+  onProgress?.(3, 'Rendering your story…')
 
   const videoRes = await post('/api/render-video', {
     jobId: script.jobId,
-    scenes: script.scenes,
     clips: clipsData.clips,
-    audio: audioData.audio,
   })
   const videoData = await videoRes.json()
   if (!videoRes.ok) throw new Error(videoData.error ?? 'Video render failed')

@@ -2,8 +2,7 @@ import { Check } from 'lucide-react'
 
 const STEPS = [
   'Writing story script',
-  'Painting scenes',
-  'Recording narration',
+  'Generating video clips',
   'Rendering your story',
   'Finalising animation',
 ]
@@ -49,7 +48,7 @@ export default function GeneratingModal({ currentStep, stepLabel }) {
           <div
             style={{
               height: '100%',
-              width: `${Math.min((currentStep / 5) * 100, 95)}%`,
+              width: `${Math.min((currentStep / 4) * 100, 95)}%`,
               background: 'linear-gradient(90deg, var(--rose), var(--amber))',
               borderRadius: '4px',
               transition: 'width 0.6s ease',

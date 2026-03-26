@@ -76,7 +76,7 @@ export default function RecordPage() {
         }
       )
 
-      setGenStep(5)
+      setGenStep(4)
       setGenStepLabel('Finalising animation…')
       await new Promise((r) => setTimeout(r, 600))
 

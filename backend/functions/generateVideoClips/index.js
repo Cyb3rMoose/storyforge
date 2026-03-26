@@ -39,6 +39,7 @@ exports.handler = async (event) => {
 
   const runway = new RunwayML({ apiKey: process.env.RUNWAYML_API_SECRET ?? process.env.RUNWAY_API_KEY })
   const stylePrompt = STYLE_PROMPTS[style] ?? STYLE_PROMPTS.storybook
+  const clipDuration = body.clipDuration ?? 5
   const results = []
 
   for (const scene of scenes) {
@@ -47,9 +48,9 @@ exports.handler = async (event) => {
       console.log(`Scene ${scene.id}: generating video clip…`)
 
       const task = await runway.textToVideo.create({
-        model: 'gen4.5',
+        model: 'veo3.1_fast',
         promptText,
-        duration: 5,
+        duration: clipDuration,
         ratio: '1280:720',
         watermark: false,
       })
