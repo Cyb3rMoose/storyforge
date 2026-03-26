@@ -29,8 +29,17 @@ const AI_RESPONSES = [
   "Done! The colour palette has been shifted to give a more magical feel. I can also adjust the character colours to complement if you'd like.",
 ]
 
+const STARS = Array.from({ length: 10 }, (_, i) => ({
+  id: i,
+  width:  Math.random() * 2 + 1,
+  height: Math.random() * 2 + 1,
+  top:    Math.random() * 60,
+  left:   Math.random() * 100,
+}))
+
 function AnimationCanvas({ animation, activeScene }) {
   const scene = animation.sceneList?.[activeScene] ?? animation.sceneList?.[0]
+
   return (
     <div
       style={{
@@ -49,17 +58,17 @@ function AnimationCanvas({ animation, activeScene }) {
       }}
     >
       {/* Stars */}
-      {[...Array(10)].map((_, i) => (
+      {STARS.map((s) => (
         <div
-          key={i}
+          key={s.id}
           style={{
             position: 'absolute',
-            width: `${Math.random() * 2 + 1}px`,
-            height: `${Math.random() * 2 + 1}px`,
+            width: `${s.width}px`,
+            height: `${s.height}px`,
             borderRadius: '50%',
             background: 'white',
-            top: `${Math.random() * 60}%`,
-            left: `${Math.random() * 100}%`,
+            top: `${s.top}%`,
+            left: `${s.left}%`,
             opacity: 0.7,
           }}
         />

@@ -42,16 +42,18 @@ function Waveform({ isActive }) {
   const [heights, setHeights] = useState(Array(32).fill(4))
 
   useEffect(() => {
-    if (!isActive) { setHeights(Array(32).fill(4)); return }
+    if (!isActive) return
     const id = setInterval(() => {
       setHeights(Array(32).fill(0).map(() => Math.random() * 22 + 5))
     }, 90)
     return () => clearInterval(id)
   }, [isActive])
 
+  const displayHeights = isActive ? heights : Array(32).fill(4)
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', height: '34px' }}>
-      {heights.map((h, i) => (
+      {displayHeights.map((h, i) => (
         <div
           key={i}
           style={{
@@ -79,14 +81,10 @@ function TranscriptionPanel({ recordings }) {
   const [prompts, setPrompts]         = useState([])
   const [usedPrompt, setUsedPrompt]   = useState(null)
 
-  // Keep selectedIdx in bounds when recordings change
-  useEffect(() => {
-    setSelectedIdx(0)
-    setPrompts([])
-    setUsedPrompt(null)
-  }, [recordings.length])
+  // selectedIdx is kept in bounds by clamping on read
+  const safeIdx = Math.min(selectedIdx, recordings.length - 1)
 
-  const rec = recordings[selectedIdx]
+  const rec = recordings[safeIdx]
   if (!rec) return null
 
   const transcriptionText = editText || rec.transcription
@@ -107,7 +105,7 @@ function TranscriptionPanel({ recordings }) {
     setSummarising(false)
   }
 
-  const usePrompt = (prompt) => {
+  const applyPrompt = (prompt) => {
     setStoryPrompt(prompt)
     setInputMode('prompt')
     setUsedPrompt(prompt)
@@ -354,7 +352,7 @@ function TranscriptionPanel({ recordings }) {
                       {prompt}
                     </p>
                     <button
-                      onClick={() => usePrompt(prompt)}
+                      onClick={() => applyPrompt(prompt)}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
