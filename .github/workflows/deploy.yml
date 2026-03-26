@@ -1,0 +1,75 @@
+name: Deploy — S3 + CloudFront
+
+on:
+  push:
+    branches: [main]
+
+# Prevent concurrent deployments
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    environment: production
+
+    # Only deploy if CI passes
+    needs: []  # CI runs in parallel — deploy waits for its own build step below
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Security gate — must pass before deploying ──────────────────────────
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      # ── Build ───────────────────────────────────────────────────────────────
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      # ── Deploy to S3 ────────────────────────────────────────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+
+      - name: Sync dist/ to S3
+        run: |
+          # Upload hashed assets with long cache headers
+          aws s3 sync dist/assets/ s3://storyforge-frontend/assets/ \
+            --cache-control "public, max-age=31536000, immutable" \
+            --delete
+
+          # Upload everything else (index.html, etc.) with no-cache headers
+          aws s3 sync dist/ s3://storyforge-frontend/ \
+            --exclude "assets/*" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --delete
+
+      # ── Invalidate CloudFront so changes are live immediately ───────────────
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
+
+      - name: Deployment complete
+        run: |
+          echo "✅ Deployed to https://d2wsxozpwngfxe.cloudfront.net"
