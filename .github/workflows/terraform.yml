@@ -26,6 +26,21 @@ jobs:
         with:
           terraform_version: "~> 1.6"
 
+      # ── IaC Security scan — runs before AWS credentials are needed ─────────────
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Checkov IaC Scan
+        working-directory: terraform
+        run: |
+          checkov -d . \
+            --framework terraform \
+            --output cli \
+            --skip-check CKV_AWS_86,CKV_AWS_65,CKV2_AWS_42
+          # CKV_AWS_86  — CloudFront access logging (overkill for prototype)
+          # CKV_AWS_65  — CloudFront access logging (duplicate check)
+          # CKV2_AWS_42 — CloudFront TLS 1.2 minimum (using default cert for now)
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
