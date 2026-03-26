@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import useStoryStore from '../../store/useStoryStore'
 
 const INSPIRATIONS = [
@@ -10,14 +9,16 @@ const INSPIRATIONS = [
 ]
 
 const LENGTHS = [
+  { id: 'quick',  label: 'Quick',  desc: '~30 sec' },
   { id: 'short',  label: 'Short',  desc: '1–2 min' },
   { id: 'medium', label: 'Medium', desc: '3–5 min' },
   { id: 'long',   label: 'Long',   desc: '8–12 min' },
 ]
 
 export default function StoryPrompt() {
-  const { storyPrompt, setStoryPrompt } = useStoryStore()
-  const [length, setLength] = useState('medium')
+  const { storyPrompt, setStoryPrompt, selectedLength, setSelectedLength } = useStoryStore()
+  const length = selectedLength
+  const setLength = setSelectedLength
 
   return (
     <div>

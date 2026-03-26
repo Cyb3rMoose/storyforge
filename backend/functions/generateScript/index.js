@@ -25,7 +25,7 @@ exports.handler = async (event) => {
     return response(400, { error: 'prompt is required' })
   }
 
-  const sceneCount = { short: 4, medium: 7, long: 11 }[length] ?? 7
+  const sceneCount = { quick: 2, short: 4, medium: 7, long: 11 }[length] ?? 7
 
   const systemPrompt = `You are a creative children's story writer and animator.
 Your job is to turn story prompts into structured animation scripts.
@@ -67,7 +67,7 @@ Rules:
       system: systemPrompt,
     })
 
-    const raw = message.content[0].text.trim()
+    const raw = message.content[0].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
     const script = JSON.parse(raw)
 
     const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`

@@ -1,11 +1,36 @@
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 /**
+ * Transcribes an audio blob using OpenAI Whisper via the backend.
+ *
+ * @param {Blob} audioBlob
+ * @returns {Promise<string>} transcription text
+ */
+export function transcribeRecording(audioBlob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result.split(',')[1]
+        const res = await post('/api/transcribe', { audio: base64, mimeType: audioBlob.type })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error ?? 'Transcription failed')
+        resolve(data.transcription)
+      } catch (err) {
+        reject(err)
+      }
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(audioBlob)
+  })
+}
+
+/**
  * Runs the full generation pipeline:
- * Claude script → DALL-E images → Polly audio → FFmpeg video
+ * Claude script → Runway video clips → Polly audio → FFmpeg video
  *
  * @param {{ prompt: string, audience: string, style: string, length: string }} params
- * @param {(step: number, label: string) => void} onProgress  - called at each pipeline step (1-4)
+ * @param {(step: number, label: string) => void} onProgress
  * @returns {Promise<{ jobId, title, style, audience, scenes, videoUrl }>}
  */
 export async function generateStory({ prompt, audience, style, length }, onProgress) {
@@ -15,14 +40,14 @@ export async function generateStory({ prompt, audience, style, length }, onProgr
   const script = await scriptRes.json()
   if (!scriptRes.ok) throw new Error(script.error ?? 'Script generation failed')
 
-  onProgress?.(2, 'Painting scenes…')
+  onProgress?.(2, 'Generating video clips…')
 
-  const imagesRes = await post('/api/generate-images', {
+  const clipsRes = await post('/api/generate-video-clips', {
     jobId: script.jobId,
     style: script.style,
     scenes: script.scenes,
   })
-  const imagesData = await imagesRes.json()
+  const clipsData = await clipsRes.json()
 
   onProgress?.(3, 'Recording narration…')
 
@@ -38,7 +63,7 @@ export async function generateStory({ prompt, audience, style, length }, onProgr
   const videoRes = await post('/api/render-video', {
     jobId: script.jobId,
     scenes: script.scenes,
-    images: imagesData.images,
+    clips: clipsData.clips,
     audio: audioData.audio,
   })
   const videoData = await videoRes.json()

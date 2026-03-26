@@ -10,6 +10,7 @@ const BUCKET = process.env.AWS_S3_BUCKET ?? 'storyforge-media'
 
 const STYLE_SUFFIXES = {
   watercolor:   'watercolor painting, soft washes of color, gentle textures, children\'s book illustration',
+  cartoon:      'hand-drawn cartoon illustration, sketch style, whimsical, children\'s book',
   'hand-drawn': 'hand-drawn pencil and ink illustration, sketch style, whimsical, children\'s book',
   '3d':         '3D rendered animation style, Pixar-inspired, vibrant colors, cinematic lighting',
   anime:        'anime illustration style, clean lines, expressive characters, vivid colors',
@@ -40,37 +41,53 @@ exports.handler = async (event) => {
 
   // Generate images sequentially to avoid rate limits
   for (const scene of scenes) {
-    try {
-      const imagePrompt = `${scene.description}. Art style: ${styleSuffix}. No text or words in the image.`
+    const safePrefix = 'Safe for children, family-friendly illustration. '
+    const attempts = [
+      `${safePrefix}${scene.description}. Art style: ${styleSuffix}. No text or words in the image.`,
+      `${safePrefix}A gentle, colourful scene from a children's animated story. Art style: ${styleSuffix}. No text or words in the image.`,
+    ]
 
-      const imageResponse = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt: imagePrompt,
-        n: 1,
-        size: '1792x1024',   // 16:9 landscape for video
-        quality: 'standard',
-        response_format: 'url',
-      })
+    let uploaded = false
+    for (const prompt of attempts) {
+      try {
+        const imageResponse = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt,
+          n: 1,
+          size: '1792x1024',
+          quality: 'standard',
+          response_format: 'url',
+        })
 
-      const imageUrl = imageResponse.data[0].url
+        const imageUrl = imageResponse.data[0].url
+        const { data: imageBuffer } = await axios.get(imageUrl, { responseType: 'arraybuffer' })
 
-      // Download image buffer
-      const { data: imageBuffer } = await axios.get(imageUrl, { responseType: 'arraybuffer' })
+        const s3Key = `jobs/${jobId}/images/scene_${scene.id}.png`
+        await s3.send(new PutObjectCommand({
+          Bucket: BUCKET,
+          Key: s3Key,
+          Body: Buffer.from(imageBuffer),
+          ContentType: 'image/png',
+        }))
 
-      // Upload to S3
-      const s3Key = `jobs/${jobId}/images/scene_${scene.id}.png`
-      await s3.send(new PutObjectCommand({
-        Bucket: BUCKET,
-        Key: s3Key,
-        Body: Buffer.from(imageBuffer),
-        ContentType: 'image/png',
-      }))
+        results.push({ sceneId: scene.id, s3Key, status: 'ok' })
+        console.log(`Scene ${scene.id} image uploaded: ${s3Key}`)
+        uploaded = true
+        break
+      } catch (err) {
+        const isSafetyBlock = err.status === 400 || err.message?.includes('safety')
+        if (isSafetyBlock && prompt === attempts[0]) {
+          console.warn(`Scene ${scene.id} safety block — retrying with fallback prompt`)
+          continue
+        }
+        console.error(`Scene ${scene.id} image failed:`, err.message)
+        results.push({ sceneId: scene.id, status: 'error', error: err.message })
+        break
+      }
+    }
 
-      results.push({ sceneId: scene.id, s3Key, status: 'ok' })
-      console.log(`Scene ${scene.id} image uploaded: ${s3Key}`)
-    } catch (err) {
-      console.error(`Scene ${scene.id} image failed:`, err.message)
-      results.push({ sceneId: scene.id, status: 'error', error: err.message })
+    if (!uploaded && !results.find((r) => r.sceneId === scene.id)) {
+      results.push({ sceneId: scene.id, status: 'error', error: 'All prompt attempts blocked by safety filter' })
     }
   }
 

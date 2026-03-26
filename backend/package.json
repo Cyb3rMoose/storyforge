@@ -4,11 +4,12 @@
   "description": "StoryForge backend Lambda functions + local dev server",
   "type": "commonjs",
   "scripts": {
-    "dev": "node -r dotenv/config local-server.js",
+    "dev": "node local-server.js",
     "test": "node --test functions/**/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@runwayml/sdk": "^3.16.0",
     "@aws-sdk/client-polly": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",

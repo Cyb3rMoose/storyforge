@@ -9,12 +9,17 @@ const BUCKET = process.env.AWS_S3_BUCKET ?? 'storyforge-media'
 
 // Narrator voices mapped to audience type
 const VOICES = {
-  toddlers: { VoiceId: 'Joanna', Engine: 'neural' },
-  kids:     { VoiceId: 'Joanna', Engine: 'neural' },
-  tweens:   { VoiceId: 'Matthew', Engine: 'neural' },
-  teens:    { VoiceId: 'Matthew', Engine: 'neural' },
-  adults:   { VoiceId: 'Ruth',    Engine: 'neural' },
-  seniors:  { VoiceId: 'Ruth',    Engine: 'neural' },
+  toddlers:      { VoiceId: 'Joanna',  Engine: 'neural' },
+  'young-kids':  { VoiceId: 'Joanna',  Engine: 'neural' },
+  children:      { VoiceId: 'Joanna',  Engine: 'neural' },
+  kids:          { VoiceId: 'Joanna',  Engine: 'neural' },
+  tweens:        { VoiceId: 'Matthew', Engine: 'neural' },
+  teens:         { VoiceId: 'Matthew', Engine: 'neural' },
+  'young-adults':{ VoiceId: 'Matthew', Engine: 'neural' },
+  adults:        { VoiceId: 'Ruth',    Engine: 'neural' },
+  family:        { VoiceId: 'Joanna',  Engine: 'neural' },
+  education:     { VoiceId: 'Ruth',    Engine: 'neural' },
+  seniors:       { VoiceId: 'Ruth',    Engine: 'neural' },
 }
 
 /**

@@ -37,8 +37,31 @@ const STARS = Array.from({ length: 10 }, (_, i) => ({
   left:   Math.random() * 100,
 }))
 
-function AnimationCanvas({ animation, activeScene }) {
+function AnimationCanvas({ animation, activeScene, playing, onPlayingChange }) {
+  const videoRef = useRef(null)
   const scene = animation.sceneList?.[activeScene] ?? animation.sceneList?.[0]
+
+  useEffect(() => {
+    if (!videoRef.current) return
+    if (playing) {
+      videoRef.current.play().catch(() => onPlayingChange(false))
+    } else {
+      videoRef.current.pause()
+    }
+  }, [playing, onPlayingChange])
+
+  if (animation.videoUrl) {
+    return (
+      <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 'var(--radius)', overflow: 'hidden', background: '#000' }}>
+        <video
+          ref={videoRef}
+          src={animation.videoUrl}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          onEnded={() => onPlayingChange(false)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -57,7 +80,6 @@ function AnimationCanvas({ animation, activeScene }) {
         overflow: 'hidden',
       }}
     >
-      {/* Stars */}
       {STARS.map((s) => (
         <div
           key={s.id}
@@ -74,7 +96,6 @@ function AnimationCanvas({ animation, activeScene }) {
         />
       ))}
 
-      {/* Characters */}
       <div style={{ display: 'flex', gap: '44px', alignItems: 'flex-end', position: 'relative', zIndex: 10 }}>
         <div style={{ animation: 'float-char 3s ease-in-out infinite', textAlign: 'center' }}>
           <div
@@ -101,7 +122,6 @@ function AnimationCanvas({ animation, activeScene }) {
         </div>
       </div>
 
-      {/* Scene label */}
       <div
         style={{
           position: 'absolute',
@@ -130,6 +150,11 @@ export default function AnimationEditor({ animation }) {
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
   const [showExport, setShowExport] = useState(false)
+  const [selectedChar1, setSelectedChar1] = useState('🐉 Dragon')
+  const [selectedChar2, setSelectedChar2] = useState('🦄 Unicorn')
+  const [selectedScenery, setSelectedScenery] = useState('🌙 Night Forest')
+  const [selectedSkyMood, setSelectedSkyMood] = useState(0)
+  const [selectedStoryMood, setSelectedStoryMood] = useState(0)
   const chatBottomRef = useRef(null)
 
   useEffect(() => {
@@ -177,7 +202,7 @@ export default function AnimationEditor({ animation }) {
           {/* Canvas */}
           <div className="sf-card" style={{ marginBottom: '18px', overflow: 'visible' }}>
             <div style={{ padding: '16px 20px 0' }}>
-              <AnimationCanvas animation={animation} activeScene={activeScene} />
+              <AnimationCanvas animation={animation} activeScene={activeScene} playing={playing} onPlayingChange={setPlaying} />
             </div>
 
             {/* Playback controls */}
@@ -366,13 +391,13 @@ export default function AnimationEditor({ animation }) {
               <div style={{ marginBottom: '12px' }}>
                 <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Character 1</p>
                 {['🐉 Dragon', '🦁 Lion', '🧙 Wizard', '🤖 Robot', '👸 Princess'].map((c) => (
-                  <button key={c} className={`sf-editor-tag ${c.includes('Dragon') ? 'active' : ''}`}>{c}</button>
+                  <button key={c} className={`sf-editor-tag ${selectedChar1 === c ? 'active' : ''}`} onClick={() => setSelectedChar1(c)}>{c}</button>
                 ))}
               </div>
               <div>
                 <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Character 2</p>
                 {['🦄 Unicorn', '🐰 Rabbit', '🧚 Fairy', '🦊 Fox'].map((c) => (
-                  <button key={c} className={`sf-editor-tag ${c.includes('Unicorn') ? 'active' : ''}`}>{c}</button>
+                  <button key={c} className={`sf-editor-tag ${selectedChar2 === c ? 'active' : ''}`} onClick={() => setSelectedChar2(c)}>{c}</button>
                 ))}
               </div>
             </div>
@@ -382,8 +407,8 @@ export default function AnimationEditor({ animation }) {
           <div className="sf-editor-panel">
             <div className="sf-editor-panel-header">🌄 Scenery</div>
             <div style={{ padding: '14px 16px' }}>
-              {['🌙 Night Forest', '🌅 Sunrise', '🏰 Castle', '🌊 Ocean', '❄️ Winter', '🌸 Blossom'].map((s, i) => (
-                <button key={s} className={`sf-editor-tag ${i === 0 ? 'active' : ''}`}>{s}</button>
+              {['🌙 Night Forest', '🌅 Sunrise', '🏰 Castle', '🌊 Ocean', '❄️ Winter', '🌸 Blossom'].map((s) => (
+                <button key={s} className={`sf-editor-tag ${selectedScenery === s ? 'active' : ''}`} onClick={() => setSelectedScenery(s)}>{s}</button>
               ))}
             </div>
           </div>
@@ -397,13 +422,14 @@ export default function AnimationEditor({ animation }) {
                   <div
                     key={m.label}
                     title={m.label}
+                    onClick={() => setSelectedSkyMood(i)}
                     style={{
                       width: '26px',
                       height: '26px',
                       borderRadius: '50%',
                       background: `linear-gradient(135deg, ${m.from}, ${m.to})`,
                       cursor: 'pointer',
-                      border: `2px solid ${i === 0 ? 'var(--ink)' : 'transparent'}`,
+                      border: `2px solid ${selectedSkyMood === i ? 'var(--ink)' : 'transparent'}`,
                       transition: 'all 0.2s',
                     }}
                   />
@@ -411,7 +437,7 @@ export default function AnimationEditor({ animation }) {
               </div>
               <p style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '7px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Story Mood</p>
               {['😊 Joyful', '😱 Thrilling', '😢 Emotional', '😂 Funny'].map((m, i) => (
-                <button key={m} className={`sf-editor-tag ${i === 0 ? 'active' : ''}`}>{m}</button>
+                <button key={m} className={`sf-editor-tag ${selectedStoryMood === i ? 'active' : ''}`} onClick={() => setSelectedStoryMood(i)}>{m}</button>
               ))}
             </div>
           </div>

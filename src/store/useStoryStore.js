@@ -84,6 +84,9 @@ const useStoryStore = create((set, get) => ({
   selectedStyle: null,
   setSelectedStyle: (s) => set({ selectedStyle: s }),
 
+  selectedLength: 'quick',
+  setSelectedLength: (l) => set({ selectedLength: l }),
+
   // ── Animations ────────────────────────────────
   animations: MOCK_ANIMATIONS,
   addAnimation: (anim) => set((s) => ({ animations: [anim, ...s.animations] })),

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Square, Pause, Play, Trash2, Volume2, Sparkles, ArrowRight, Check, Pencil } from 'lucide-react'
 import useAudioRecorder from '../../hooks/useAudioRecorder'
 import useStoryStore from '../../store/useStoryStore'
+import { transcribeRecording } from '../../api/storyforge'
 
 // ── Mock data ──────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ function TranscriptionPanel({ recordings }) {
   const transcriptionText = editText || rec.transcription
 
   const startEdit = () => {
-    setEditText(rec.transcription)
+    setEditText(transcriptionText)
     setEditing(true)
   }
 
@@ -391,16 +392,27 @@ export default function AudioRecorder() {
   const { isRecording, isPaused, duration, audioBlob, audioUrl, error, start, stop, pause, resume, reset } =
     useAudioRecorder()
   const { recordings, addRecording, removeRecording } = useStoryStore()
+  const [transcribing, setTranscribing] = useState(false)
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!audioBlob || !audioUrl) return
+    setTranscribing(true)
+    let transcription
+    try {
+      transcription = await transcribeRecording(audioBlob)
+    } catch (err) {
+      console.warn('Whisper transcription failed, using fallback:', err.message)
+      transcription = MOCK_TRANSCRIPTIONS[recordings.length % MOCK_TRANSCRIPTIONS.length]
+    } finally {
+      setTranscribing(false)
+    }
     addRecording({
       id: Date.now().toString(),
       title: `Recording ${recordings.length + 1}`,
       duration,
       url: audioUrl,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      transcription: MOCK_TRANSCRIPTIONS[recordings.length % MOCK_TRANSCRIPTIONS.length],
+      transcription,
     })
     reset()
   }
@@ -444,11 +456,16 @@ export default function AudioRecorder() {
 
           {audioBlob && !isRecording && (
             <>
-              <button className="sf-btn-secondary" onClick={reset} style={{ fontSize: '0.78rem', padding: '7px 14px' }}>
+              <button className="sf-btn-secondary" onClick={reset} disabled={transcribing} style={{ fontSize: '0.78rem', padding: '7px 14px' }}>
                 🔄 Re-record
               </button>
-              <button className="sf-btn-primary" onClick={handleSave} style={{ fontSize: '0.86rem', padding: '9px 20px' }}>
-                Save Recording
+              <button className="sf-btn-primary" onClick={handleSave} disabled={transcribing} style={{ fontSize: '0.86rem', padding: '9px 20px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                {transcribing ? (
+                  <>
+                    <div className="sf-spinner" style={{ width: 14, height: 14, borderWidth: 2, borderTopColor: 'white' }} />
+                    Transcribing…
+                  </>
+                ) : 'Save Recording'}
               </button>
             </>
           )}

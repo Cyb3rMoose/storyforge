@@ -1,6 +1,7 @@
 'use strict'
 
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3')
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 const ffmpeg = require('fluent-ffmpeg')
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg')
 const fs = require('fs')
@@ -14,21 +15,21 @@ const BUCKET = process.env.AWS_S3_BUCKET ?? 'storyforge-media'
 const TMP = os.tmpdir()
 
 /**
- * Downloads scene images + audio from S3, stitches them into a video using FFmpeg,
- * then uploads the final .mp4 back to S3.
+ * Downloads scene video clips + audio from S3, overlays narration audio on each clip
+ * (looping the clip to cover full narration), concatenates into final.mp4, uploads to S3.
  *
  * Input event:
- *   { jobId, scenes: [{ id, duration }], images: [{ sceneId, s3Key }], audio: [{ sceneId, s3Key, durationMs }] }
+ *   { jobId, scenes: [{ id, duration }], clips: [{ sceneId, s3Key }], audio: [{ sceneId, s3Key, durationMs }] }
  *
  * Returns:
  *   { jobId, videoKey, videoUrl }
  */
 exports.handler = async (event) => {
   const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body ?? event
-  const { jobId, scenes, images, audio } = body
+  const { jobId, scenes, clips, audio } = body
 
-  if (!jobId || !scenes?.length || !images?.length || !audio?.length) {
-    return response(400, { error: 'jobId, scenes, images, and audio are required' })
+  if (!jobId || !scenes?.length || !clips?.length || !audio?.length) {
+    return response(400, { error: 'jobId, scenes, clips, and audio are required' })
   }
 
   const workDir = path.join(TMP, jobId)
@@ -36,14 +37,14 @@ exports.handler = async (event) => {
 
   try {
     // ── 1. Download all assets from S3 ────────────────────────────────────────
-    const imageMap = {}
+    const clipMap = {}
     const audioMap = {}
 
-    for (const img of images) {
-      if (img.status === 'error') continue
-      const localPath = path.join(workDir, `scene_${img.sceneId}.png`)
-      await downloadFromS3(img.s3Key, localPath)
-      imageMap[img.sceneId] = localPath
+    for (const clip of clips) {
+      if (clip.status === 'error') continue
+      const localPath = path.join(workDir, `scene_${clip.sceneId}.mp4`)
+      await downloadFromS3(clip.s3Key, localPath)
+      clipMap[clip.sceneId] = localPath
     }
 
     for (const aud of audio) {
@@ -53,55 +54,52 @@ exports.handler = async (event) => {
       audioMap[aud.sceneId] = { path: localPath, durationMs: aud.durationMs }
     }
 
-    // ── 2. Build per-scene video clips (image + audio, Ken Burns zoom) ────────
-    const clipPaths = []
+    // ── 2. Overlay narration audio on each video clip (looping clip to fill audio) ──
+    const muxedPaths = []
 
     for (const scene of scenes) {
-      const imgPath = imageMap[scene.id]
+      const clipPath = clipMap[scene.id]
       const audData = audioMap[scene.id]
-      if (!imgPath || !audData) continue
+      if (!clipPath || !audData) continue
 
-      const clipPath = path.join(workDir, `clip_${scene.id}.mp4`)
-      const durationSec = Math.max(audData.durationMs / 1000, scene.duration ?? 8)
-
-      await renderClip(imgPath, audData.path, clipPath, durationSec)
-      clipPaths.push(clipPath)
-      console.log(`Rendered clip for scene ${scene.id}: ${clipPath}`)
+      const muxedPath = path.join(workDir, `muxed_${scene.id}.mp4`)
+      await overlayAudio(clipPath, audData.path, muxedPath)
+      muxedPaths.push(muxedPath)
+      console.log(`Muxed clip for scene ${scene.id}: ${muxedPath}`)
     }
 
-    if (!clipPaths.length) {
-      throw new Error('No clips were rendered successfully')
+    if (!muxedPaths.length) {
+      throw new Error('No clips were muxed successfully')
     }
 
-    // ── 3. Concatenate clips into final video ─────────────────────────────────
+    // ── 3. Concatenate into final video ───────────────────────────────────────
     const outputPath = path.join(workDir, 'final.mp4')
-    await concatenateClips(clipPaths, outputPath)
+    await concatenateClips(muxedPaths, outputPath)
 
-    // ── 4. Upload final video to S3 ───────────────────────────────────────────
+    // ── 4. Upload to S3 ───────────────────────────────────────────────────────
     const videoKey = `jobs/${jobId}/final.mp4`
-    const videoBuffer = fs.readFileSync(outputPath)
-
     await s3.send(new PutObjectCommand({
       Bucket: BUCKET,
       Key: videoKey,
-      Body: videoBuffer,
+      Body: fs.readFileSync(outputPath),
       ContentType: 'video/mp4',
     }))
 
     console.log(`Final video uploaded: ${videoKey}`)
 
-    return response(200, {
-      jobId,
-      videoKey,
-      videoUrl: `https://${BUCKET}.s3.${process.env.AWS_REGION ?? 'eu-west-2'}.amazonaws.com/${videoKey}`,
-    })
+    const videoUrl = await getSignedUrl(
+      s3,
+      new GetObjectCommand({ Bucket: BUCKET, Key: videoKey }),
+      { expiresIn: 3600 },
+    )
+
+    return response(200, { jobId, videoKey, videoUrl })
   } finally {
-    // Clean up temp files
     fs.rmSync(workDir, { recursive: true, force: true })
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function downloadFromS3(key, localPath) {
   const { Body } = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
@@ -110,16 +108,15 @@ async function downloadFromS3(key, localPath) {
   fs.writeFileSync(localPath, Buffer.concat(chunks))
 }
 
-function renderClip(imagePath, audioPath, outputPath, durationSec) {
+/**
+ * Overlays narration audio onto a video clip, looping the video to match audio length.
+ */
+function overlayAudio(videoPath, audioPath, outputPath) {
   return new Promise((resolve, reject) => {
-    // Ken Burns effect: slow zoom from 100% to 108% over the clip duration
-    const zoomFilter = `zoompan=z='min(zoom+0.0015,1.08)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${Math.round(durationSec * 25)}:s=1792x1024:fps=25`
-
     ffmpeg()
-      .input(imagePath)
-      .inputOptions(['-loop 1'])
+      .input(videoPath)
+      .inputOptions(['-stream_loop -1'])  // loop video until audio ends
       .input(audioPath)
-      .videoFilter(zoomFilter)
       .outputOptions([
         '-c:v libx264',
         '-preset fast',
@@ -127,8 +124,9 @@ function renderClip(imagePath, audioPath, outputPath, durationSec) {
         '-c:a aac',
         '-b:a 128k',
         '-pix_fmt yuv420p',
-        `-t ${durationSec}`,
-        '-shortest',
+        '-map 0:v:0',
+        '-map 1:a:0',
+        '-shortest',  // stop when audio finishes
       ])
       .output(outputPath)
       .on('end', resolve)
@@ -140,8 +138,7 @@ function renderClip(imagePath, audioPath, outputPath, durationSec) {
 function concatenateClips(clipPaths, outputPath) {
   return new Promise((resolve, reject) => {
     const listFile = outputPath.replace('.mp4', '_list.txt')
-    const fileList = clipPaths.map((p) => `file '${p}'`).join('\n')
-    fs.writeFileSync(listFile, fileList)
+    fs.writeFileSync(listFile, clipPaths.map((p) => `file '${p}'`).join('\n'))
 
     ffmpeg()
       .input(listFile)

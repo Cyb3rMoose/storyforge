@@ -34,7 +34,7 @@ export default function RecordPage() {
   const {
     inputMode, setInputMode,
     recordings, storyPrompt,
-    selectedAudience, selectedStyle,
+    selectedAudience, selectedStyle, selectedLength,
     addAnimation,
   } = useStoryStore()
 
@@ -69,7 +69,7 @@ export default function RecordPage() {
 
     try {
       const result = await generateStory(
-        { prompt, audience: selectedAudience, style: selectedStyle, length: 'medium' },
+        { prompt, audience: selectedAudience, style: selectedStyle, length: selectedLength },
         (step, label) => {
           setGenStep(step)
           setGenStepLabel(label)
@@ -145,7 +145,12 @@ export default function RecordPage() {
             </button>
           </div>
           <div style={{ padding: '24px' }}>
-            {inputMode === 'record' ? <AudioRecorder /> : <StoryPrompt />}
+            <div style={{ display: inputMode === 'record' ? 'block' : 'none' }}>
+              <AudioRecorder />
+            </div>
+            <div style={{ display: inputMode === 'prompt' ? 'block' : 'none' }}>
+              <StoryPrompt />
+            </div>
           </div>
         </div>
 

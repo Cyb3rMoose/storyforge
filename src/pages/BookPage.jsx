@@ -282,7 +282,7 @@ export default function BookPage() {
               }}
             >
               <div className="sf-book-page-left">
-                {BOOK_TYPES.find((t) => t.id === (generatedBook?.type || 'novel'))?.icon || '📖'}
+                {BOOK_TYPES.find((t) => t.id === (generatedBook?.type || bookType || 'novel'))?.icon || '📖'}
                 <div
                   style={{
                     position: 'absolute', bottom: '12px', left: 0, right: 0,
