@@ -1,0 +1,10 @@
+# ZAP baseline scan rule overrides
+# Format: rule_id	WARN|IGNORE|FAIL	description
+# Ref: https://www.zaproxy.org/docs/docker/baseline-scan/
+
+# These alerts are expected for a local dev API without a full web server config
+10035	IGNORE	Strict-Transport-Security header not set (HTTP in CI, HTTPS in prod via CloudFront)
+10038	IGNORE	Content Security Policy header not set (handled by CloudFront in production)
+10036	IGNORE	Server leaks version information (local Express server only, not exposed in prod)
+10021	IGNORE	X-Content-Type-Options header missing (local dev server, headers set at CDN layer)
+10020	IGNORE	X-Frame-Options header not set (SPA served via CloudFront which sets security headers)

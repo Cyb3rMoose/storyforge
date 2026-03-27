@@ -23,7 +23,7 @@ jobs:
 
   # ── 2. Dependency audit ─────────────────────────────────────────────────────
   dependency-audit:
-    name: Dependency Audit
+    name: Dependency Audit (npm audit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,9 +68,96 @@ jobs:
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-  # ── 4. Lint ─────────────────────────────────────────────────────────────────
+  # ── 4. DAST — Live API scan ─────────────────────────────────────────────────
+  dast:
+    name: DAST (OWASP ZAP Baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Start backend server
+        run: node local-server.js &
+        working-directory: backend
+        env:
+          PORT: 3001
+          # Stub values — server starts without real AI calls
+          ANTHROPIC_API_KEY: stub
+          OPENAI_API_KEY: stub
+          RUNWAYML_API_SECRET: stub
+          AWS_ACCESS_KEY_ID: stub
+          AWS_SECRET_ACCESS_KEY: stub
+          AWS_REGION: eu-west-2
+          AWS_S3_BUCKET: stub
+
+      - name: Wait for backend to be ready
+        run: |
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:3001/health && echo "Backend ready" && break
+            echo "Waiting for backend... ($i)"
+            sleep 2
+          done
+
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: 'http://localhost:3001'
+          rules_file_name: '.github/zap-rules.tsv'
+          cmd_options: '-a'
+          fail_action: false  # Report findings but don't block — use reports for visibility
+
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zap-report
+          path: report_html.html
+          retention-days: 30
+
+  # ── 5. SCA — Trivy filesystem scan ─────────────────────────────────────────
+  trivy:
+    name: SCA (Trivy Filesystem Scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          format: 'table'
+          ignore-unfixed: true
+
+      - name: Run Trivy — SARIF report
+        uses: aquasecurity/trivy-action@0.28.0
+        if: always()
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ── 6. Lint ─────────────────────────────────────────────────────────────────
   lint:
-    name: Lint
+    name: Lint (ESLint)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,11 +173,11 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-  # ── 5. Build ────────────────────────────────────────────────────────────────
+  # ── 7. Build — only after all security gates pass ──────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [secret-scan, dependency-audit, lint]
+    needs: [secret-scan, dependency-audit, sast, trivy, lint]
     steps:
       - uses: actions/checkout@v4
 
