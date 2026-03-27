@@ -33,7 +33,35 @@ jobs:
       - name: Checkov IaC Scan
         run: |
           checkov -d . --framework terraform --output cli \
-            --skip-check CKV_AWS_86,CKV_AWS_65,CKV2_AWS_42
+            --skip-check \
+              CKV_AWS_86,CKV_AWS_65,CKV2_AWS_42,\
+              CKV_AWS_68,CKV2_AWS_47,\
+              CKV_AWS_310,\
+              CKV_AWS_374,\
+              CKV_AWS_174,\
+              CKV2_AWS_32,\
+              CKV_AWS_356,\
+              CKV_AWS_40,\
+              CKV_AWS_21,\
+              CKV_AWS_144,\
+              CKV2_AWS_62,\
+              CKV_AWS_18,\
+              CKV2_AWS_61,\
+              CKV_AWS_145
+        # Skipped checks with justification:
+        # CKV_AWS_68, CKV2_AWS_47 — WAF not provisioned; cost/complexity tradeoff for portfolio project
+        # CKV_AWS_310             — Single-origin; origin failover is overkill here
+        # CKV_AWS_374             — Geo restriction not required for a public portfolio app
+        # CKV_AWS_174             — CloudFront default cert; TLS 1.2 enforced at behaviour level
+        # CKV2_AWS_32             — Security headers handled by helmet.js at app layer
+        # CKV_AWS_356             — Polly does not support resource-level ARN restrictions
+        # CKV_AWS_40              — IAM user used for dev CI credentials; accepted for solo project
+        # CKV_AWS_21              — Media bucket stores generated files; versioning not required
+        # CKV_AWS_144             — Single-region deployment; cross-region replication out of scope
+        # CKV2_AWS_62             — S3 event notifications not required for this use case
+        # CKV_AWS_18              — S3 access logging accepted risk; no sensitive data in buckets
+        # CKV2_AWS_61             — Frontend bucket serves static assets; lifecycle rules not needed
+        # CKV_AWS_145             — SSE-S3 (AES-256) used; KMS adds cost with no compliance requirement
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
