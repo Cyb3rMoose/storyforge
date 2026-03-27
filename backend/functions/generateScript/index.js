@@ -31,7 +31,7 @@ exports.handler = async (event) => {
     return response(400, { error: `prompt must be ${MAX_PROMPT_LENGTH} characters or fewer` })
   }
   // Strip control characters that could be used to manipulate the LLM instruction boundary
-  const sanitisedPrompt = prompt.replace(/[\x00-\x1F\x7F]/g, '').trim()
+  const sanitisedPrompt = prompt.replace(/[\x00-\x1F\x7F]/g, '').trim() // eslint-disable-line no-control-regex
 
   const sceneCount = { '5s': 1, '10s': 1, '20s': 2, '30s': 3 }[length] ?? 1
 
