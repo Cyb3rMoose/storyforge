@@ -19,6 +19,26 @@ const STYLE_PROMPTS = {
 
 const POLL_INTERVAL_MS = 5000
 const MAX_POLLS = 60 // 5 min timeout per clip
+const MAX_DESC_LENGTH = 500 // LLM05 — cap LLM output before forwarding to Runway
+
+// SSRF guard — API7: only fetch video from HTTPS, non-private hosts (OWASP API7)
+function isSafeVideoUrl(url) {
+  try {
+    const { protocol, hostname } = new URL(url)
+    if (protocol !== 'https:') return false
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      hostname === '169.254.169.254'  // AWS metadata endpoint
+    ) return false
+    return true
+  } catch {
+    return false
+  }
+}
 
 /**
  * Generates one Runway Gen-3 video clip per scene and uploads to S3.
@@ -44,7 +64,9 @@ exports.handler = async (event) => {
 
   for (const scene of scenes) {
     try {
-      const promptText = `${scene.description}. ${stylePrompt}. Cinematic smooth animation, no text on screen.`
+      // Cap description length before forwarding to Runway (LLM05 — Improper Output Handling)
+      const safeDescription = scene.description.slice(0, MAX_DESC_LENGTH)
+      const promptText = `${safeDescription}. ${stylePrompt}. Cinematic smooth animation, no text on screen.`
       console.log(`Scene ${scene.id}: generating video clip…`)
 
       const task = await runway.textToVideo.create({
@@ -69,6 +91,10 @@ exports.handler = async (event) => {
       }
 
       const clipUrl = result.output[0]
+      // Validate URL before fetching — prevents SSRF via tampered API response (OWASP API7)
+      if (!isSafeVideoUrl(clipUrl)) {
+        throw new Error(`Refused to fetch video from untrusted URL: ${clipUrl}`)
+      }
       const { data: videoBuffer } = await axios.get(clipUrl, { responseType: 'arraybuffer' })
 
       const s3Key = `jobs/${jobId}/clips/scene_${scene.id}.mp4`

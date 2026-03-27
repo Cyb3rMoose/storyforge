@@ -9,17 +9,19 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@runwayml/sdk": "^3.16.0",
     "@aws-sdk/client-polly": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "openai": "^4.0.0",
-    "fluent-ffmpeg": "^2.1.2",
+    "@runwayml/sdk": "^3.16.0",
     "axios": "^1.6.0",
-    "uuid": "^9.0.0",
-    "dotenv": "^16.0.0"
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.3.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "helmet": "^8.1.0",
+    "openai": "^4.0.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0"

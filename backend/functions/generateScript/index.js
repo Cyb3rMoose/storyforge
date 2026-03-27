@@ -25,6 +25,14 @@ exports.handler = async (event) => {
     return response(400, { error: 'prompt is required' })
   }
 
+  // Input validation — LLM01 (Prompt Injection) + LLM10 (Unbounded Consumption)
+  const MAX_PROMPT_LENGTH = 500
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    return response(400, { error: `prompt must be ${MAX_PROMPT_LENGTH} characters or fewer` })
+  }
+  // Strip control characters that could be used to manipulate the LLM instruction boundary
+  const sanitisedPrompt = prompt.replace(/[\x00-\x1F\x7F]/g, '').trim()
+
   const sceneCount = { '5s': 1, '10s': 1, '20s': 2, '30s': 3 }[length] ?? 1
 
   const systemPrompt = `You are a creative children's story writer and animator.
@@ -38,7 +46,7 @@ Always respond with valid JSON only — no markdown, no commentary.`
 
   const userPrompt = `Create a video script from this prompt:
 
-"${prompt}"
+"${sanitisedPrompt}"
 
 Visual style: ${style}
 Number of parts: ${sceneCount}

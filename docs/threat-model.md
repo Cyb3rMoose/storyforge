@@ -46,13 +46,13 @@ User Browser
 #### S — Spoofing
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| S1 | Attacker impersonates a legitimate user to submit generation requests | No authentication currently — all requests are anonymous by design (MVP scope) | Open — auth out of scope for MVP |
-| S2 | Attacker forges Origin header to bypass CORS | CORS is permissive (`*`) on the local dev server; in production the API is not publicly exposed without a domain | Accepted risk for MVP |
+| S1 | Attacker impersonates a legitimate user to submit generation requests | `requireApiKey` middleware — `X-API-Key` header validated against `API_KEY` env var | Mitigated |
+| S2 | Attacker forges Origin header to bypass CORS | CORS scoped to `CORS_ORIGIN` env var (default: `http://localhost:5173`); wildcard removed | Mitigated |
 
 #### T — Tampering
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| T1 | Man-in-the-middle modification of story prompt in transit | HTTPS enforced via CloudFront (`redirect-to-https`); backend API should be placed behind HTTPS (API Gateway/ALB) in production | Partially mitigated |
+| T1 | Man-in-the-middle modification of story prompt in transit | HTTPS enforced via CloudFront (`redirect-to-https`); backend API should be placed behind HTTPS (API Gateway/ALB) in production | Partial — backend HTTPS pending deployment |
 | T2 | Attacker modifies request body to inject malicious scene parameters | Backend validates `jobId` and `clips` presence; structured JSON schema limits accepted fields | Mitigated |
 
 #### R — Repudiation
@@ -63,13 +63,13 @@ User Browser
 #### I — Information Disclosure
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| I1 | Error responses leak internal stack traces or file paths | Express catches errors and returns generic messages (`Internal server error`); stack traces logged server-side only | Mitigated |
+| I1 | Error responses leak internal stack traces or file paths | Generic error in production; `detail` field gated behind `isDev` flag; stack traces server-side only | Mitigated |
 | I2 | API responses reveal AI provider details or internal structure | Responses are shaped by backend before returning to client — raw AI provider responses are not forwarded | Mitigated |
 
 #### D — Denial of Service
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| D1 | Attacker floods `/api/generate` with requests, exhausting AI API credits | No application-layer rate limiting currently applied | Open — `express-rate-limit` recommended |
+| D1 | Attacker floods `/api/generate` with requests, exhausting AI API credits | `express-rate-limit` — 5 req/15min per IP on all generation endpoints | Mitigated |
 | D2 | Oversized audio upload (base64) causes memory exhaustion | Express body limit set to 50MB; audio recordings are short by design | Mitigated |
 
 #### E — Elevation of Privilege
@@ -90,7 +90,7 @@ User Browser
 #### T — Tampering
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| T3 | Prompt injection — user input manipulates Claude system instructions | User input wrapped in structured system prompt; Claude output parsed as strict JSON schema | Partially mitigated |
+| T3 | Prompt injection — user input manipulates Claude system instructions | 500-char cap + control char strip applied; user input wrapped in structured system prompt; Claude output parsed as strict JSON schema | Mitigated |
 | T4 | Malicious content in Claude output is passed raw to Runway ML | Claude output parsed as structured JSON; only `sceneDescription` field passed to Runway | Mitigated |
 
 #### R — Repudiation
@@ -107,7 +107,7 @@ User Browser
 #### D — Denial of Service
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| D3 | AI provider rate limit hit causes pipeline failure | Each provider's rate limits apply; errors surface to user via pipeline error response | Accepted |
+| D3 | AI provider rate limit hit causes pipeline failure | Application-layer rate limiting (5 req/15min) means provider limits are unlikely to be hit; errors surface gracefully | Mitigated |
 
 #### E — Elevation of Privilege
 | ID | Threat | Mitigation | Status |
@@ -121,7 +121,7 @@ User Browser
 #### S — Spoofing
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| S5 | Attacker impersonates the backend to write to S3 | AWS SDK uses IAM credentials (access key + secret); least-privilege IAM policy scoped to `jobs/*` prefix only | Mitigated |
+| S5 | Attacker impersonates the backend to write to S3 | AWS SDK uses IAM credentials; API key auth prevents unauthenticated pipeline calls; IAM policy scoped to `jobs/*` prefix only | Mitigated |
 
 #### T — Tampering
 | ID | Threat | Mitigation | Status |
@@ -144,7 +144,7 @@ User Browser
 #### D — Denial of Service
 | ID | Threat | Mitigation | Status |
 |---|---|---|---|
-| D4 | Storage exhaustion from uncleaned job files | Lifecycle policy auto-deletes `jobs/` prefix objects after configured retention period | Mitigated |
+| D4 | Storage exhaustion from deliberate job flooding | Rate limiting (5 req/15min) limits max file creation rate; lifecycle policy auto-deletes `jobs/` objects after retention period | Mitigated |
 
 #### E — Elevation of Privilege
 | ID | Threat | Mitigation | Status |
@@ -182,23 +182,27 @@ User Browser
 
 | ID | Threat | Likelihood | Impact | Overall | Status |
 |---|---|---|---|---|---|
-| D1 | API rate abuse / cost exhaustion | High | High | **Critical** | Open |
-| T3 | Prompt injection via user input | Medium | High | **High** | Partially mitigated |
-| S1 | Unauthenticated API access | High | Medium | **High** | Accepted (MVP) |
-| R1 | No audit log of generation requests | Medium | Medium | **Medium** | Open |
-| R3 | No S3 access logging | Low | Medium | **Medium** | Open |
-| T1 | API not behind HTTPS in production | Medium | High | **High** | Open (backend deployment) |
+| D1 | API rate abuse / cost exhaustion | High | High | **Critical** | ✅ Mitigated — `express-rate-limit` |
+| T3 | Prompt injection via user input | Medium | High | **High** | ✅ Mitigated — input sanitisation + length cap |
+| S1 | Unauthenticated API access | High | Medium | **High** | ✅ Mitigated — `requireApiKey` middleware |
+| R1 | No audit log of generation requests | Medium | Medium | **Medium** | Open — audit logging recommended |
+| R3 | No S3 access logging | Low | Medium | **Medium** | Open — S3 access logging recommended |
+| T1 | API not behind HTTPS in production | Medium | High | **High** | Partial — backend HTTPS pending deployment |
 | I6 | Presigned URL shared beyond intended recipient | Low | Low | **Low** | Accepted |
 
 ---
 
 ## Recommended Remediations
 
-| Priority | Recommendation | Addresses |
-|---|---|---|
-| 1 | Add `express-rate-limit` to `/api/generate` (e.g. 5 req/min per IP) | D1 |
-| 2 | Deploy backend behind AWS API Gateway or ALB with HTTPS | T1, S1 |
-| 3 | Implement structured audit logging (job ID, timestamp, prompt length) | R1 |
-| 4 | Enable S3 server access logging on the media bucket | R3 |
-| 5 | Conduct adversarial prompt injection testing against Claude integration | T3 |
-| 6 | Enable AWS WAF on CloudFront distribution with rate-based rules | D5 |
+| Priority | Recommendation | Addresses | Status |
+|---|---|---|---|
+| 1 | Add `express-rate-limit` to `/api/generate` (5 req/15min per IP) | D1 | ✅ Done |
+| 2 | Add API key authentication (`requireApiKey` middleware) | S1 | ✅ Done |
+| 3 | Add prompt input sanitisation and length cap | T3 | ✅ Done |
+| 4 | Restrict CORS to specific origin + add Helmet security headers | API8 | ✅ Done |
+| 5 | Deploy backend behind AWS API Gateway or ALB with HTTPS | T1 | Open |
+| 6 | Implement structured audit logging (job ID, timestamp, prompt length) | R1 | Open |
+| 7 | Enable S3 server access logging on the media bucket | R3 | Open |
+| 8 | Enable AWS WAF on CloudFront distribution with rate-based rules | D5 | Open |
+
+See [owasp-assessment.md](owasp-assessment.md) for the full OWASP LLM Top 10 and API Security Top 10 assessment with code-level evidence and fixes.

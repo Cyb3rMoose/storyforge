@@ -74,9 +74,13 @@ export async function generateStory({ prompt, audience, style, length }, onProgr
 }
 
 function post(path, body) {
+  const headers = { 'Content-Type': 'application/json' }
+  // Send API key if configured (OWASP API2 — authentication)
+  const apiKey = import.meta.env.VITE_API_KEY
+  if (apiKey) headers['X-API-Key'] = apiKey
   return fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   })
 }

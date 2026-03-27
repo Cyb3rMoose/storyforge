@@ -46,7 +46,7 @@ Each integration introduces a distinct threat surface that differs from traditio
 - Claude's response is parsed as structured JSON (scenes array) — the output format constraint limits the blast radius of any injection attempt
 - Runway ML prompts are assembled server-side from Claude's structured output, not directly from user input
 
-**Residual risk:** Medium. No client-side input escaping is a substitute for server-side prompt engineering discipline. Adversarial prompt testing should be conducted periodically.
+**Residual risk:** Low. 500-character cap and control character sanitisation applied. No client-side input escaping is a substitute for server-side prompt engineering discipline. Adversarial prompt testing should be conducted periodically.
 
 ---
 
@@ -89,7 +89,7 @@ Each integration introduces a distinct threat surface that differs from traditio
 - API keys are scoped to generation-only operations; no account management or billing API access is granted
 - Runway ML enforces its own rate limits per API key
 
-**Residual risk:** Medium. No application-layer rate limiting is currently implemented on the `/api/generate` endpoint. Adding IP-based rate limiting (e.g. via AWS API Gateway or an Express middleware like `express-rate-limit`) is a recommended next step before production scaling.
+**Residual risk:** Low. `express-rate-limit` applied — generation endpoints capped at 5 requests per 15 minutes per IP. For production at scale, AWS API Gateway with WAF rate-based rules is recommended as an additional layer.
 
 ---
 
