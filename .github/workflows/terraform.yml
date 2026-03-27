@@ -31,23 +31,6 @@ jobs:
         run: pip install checkov
 
       - name: Checkov IaC Scan
-        run: |
-          checkov -d . --framework terraform --output cli \
-            --skip-check \
-              CKV_AWS_86,CKV_AWS_65,CKV2_AWS_42,\
-              CKV_AWS_68,CKV2_AWS_47,\
-              CKV_AWS_310,\
-              CKV_AWS_374,\
-              CKV_AWS_174,\
-              CKV2_AWS_32,\
-              CKV_AWS_356,\
-              CKV_AWS_40,\
-              CKV_AWS_21,\
-              CKV_AWS_144,\
-              CKV2_AWS_62,\
-              CKV_AWS_18,\
-              CKV2_AWS_61,\
-              CKV_AWS_145
         # Skipped checks with justification:
         # CKV_AWS_68, CKV2_AWS_47 — WAF not provisioned; cost/complexity tradeoff for portfolio project
         # CKV_AWS_310             — Single-origin; origin failover is overkill here
@@ -62,9 +45,12 @@ jobs:
         # CKV_AWS_18              — S3 access logging accepted risk; no sensitive data in buckets
         # CKV2_AWS_61             — Frontend bucket serves static assets; lifecycle rules not needed
         # CKV_AWS_145             — SSE-S3 (AES-256) used; KMS adds cost with no compliance requirement
+        run: >-
+          checkov -d . --framework terraform --output cli
+          --skip-check CKV_AWS_86,CKV_AWS_65,CKV2_AWS_42,CKV_AWS_68,CKV2_AWS_47,CKV_AWS_310,CKV_AWS_374,CKV_AWS_174,CKV2_AWS_32,CKV_AWS_356,CKV_AWS_40,CKV_AWS_21,CKV_AWS_144,CKV2_AWS_62,CKV_AWS_18,CKV2_AWS_61,CKV_AWS_145
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
