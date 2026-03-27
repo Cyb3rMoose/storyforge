@@ -12,7 +12,7 @@
     "@aws-sdk/client-polly": "^3.0.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "@runwayml/sdk": "^3.16.0",
+    "@runwayml/sdk": "^3.17.0",
     "axios": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
